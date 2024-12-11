@@ -183,7 +183,7 @@ async function _read(buff){
 		replay.replay_length = readInteger(buff)
 
 		if(replay.replay_length != 0){
-			replay.replay_data = await readCompressed(buff, replay.replay_length);
+			replay.replay_data = (await readCompressed(buff, replay.replay_length)).toString();
 			replay.unknown = readLong(buff)
 			return replay;
 		}

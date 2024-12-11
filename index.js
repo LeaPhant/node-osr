@@ -199,7 +199,6 @@ async function _read(buff){
 			const scoreInfo = (await readCompressed(buff, scoreInfoLength)).toString();
 
 			replay.score_info = JSON.parse(scoreInfo);
-			console.log(replay.score_info);
 		} catch(e) {
 			// not a lazer replay
 		}

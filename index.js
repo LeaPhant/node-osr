@@ -1,6 +1,6 @@
-const fs = require('fs')
+const fs = require('fs').promises;
 const leb = require('leb')
-const lzma = require('lzma')
+const lzma = require('lzma-native');
 const int64 = require('int64-buffer')
 
 const EPOCH = 621355968000000000
@@ -69,42 +69,18 @@ class Replay{
 	}
 }
 
-function readSync(input){
-	return _read((input instanceof Buffer) ? input : fs.readFileSync(input))
-}
-function read(input,cb){
-	if(cb){
-		if(input instanceof Buffer){
-			return _read(input,cb)
-		}else{
-			fs.readFile(input, (err,data) => {
-				if(err) return cb(err, null)
-				return _read(data,cb)
-			})
-		}
+async function read(input,cb){
+	if(input instanceof Buffer){
+		return _read(input)
 	}else{
-		return new Promise((resolve, reject) => {
-			if(input instanceof Buffer){
-				_read(input, (err,osr) => {
-					if(err) return reject(err)
-					resolve(osr)
-				})
-			}else{
-				fs.readFile(input, (err,data) => {
-					if(err) return reject(err)
-					_read(data, (err,osr) => {
-						if(err) return reject(err)
-						resolve(osr)
-					})
-				})
-			}
-		})
+		const data = await fs.readFile(input);
+		return _read(data);
 	}
 }
 
 function _serialize(data, cb){	
 	try{
-		let gameMode = new Buffer([data.gameMode])
+		let gameMode = Buffer.from([data.gameMode])
 		let gameVersion = writeInteger(data.gameVersion)
 		let beatmapMD5 = writeString(data.beatmapMD5)
 		let playerName = writeString(data.playerName)
@@ -177,7 +153,7 @@ function _serialize(data, cb){
 		return int64.Uint64LE(long).toBuffer()
 	}
 }
-function _read(buff, cb){
+async function _read(buff){
 	let offset = 0x00
 	let replay = new Replay()
 	try{
@@ -206,30 +182,16 @@ function _read(buff, cb){
 		replay.timestamp = new Date((readLong(buff)-EPOCH)/10000)
 		replay.replay_length = readInteger(buff)
 
-		if(typeof cb === 'undefined'){
-			if(replay.replay_length != 0)
-				replay.replay_data = readCompressedSync(buff, replay.replay_length)
+		if(replay.replay_length != 0){
+			replay.replay_data = await readCompressed(buff, replay.replay_length);
 			replay.unknown = readLong(buff)
-			return replay
-		}else{
-			if(replay.replay_length != 0){
-				readCompressed(buff, replay.replay_length, (res, err) => {
-					replay.replay_data = res
-					replay.unknown = readLong(buff)
-					if(err == 0) return cb(null, replay)
-					cb(err, null)
-				})
-			}else{
-				replay.unknown = readLong(buff)
-				cb(null, replay)
-			}
+			return replay;
 		}
+		
+		replay.unknown = readLong(buff)
+		return replay;
 	}catch(err){
-		if(typeof cb === 'undefined'){
-			throw err
-		}else{
-			cb(err, null)
-		}
+		return null;
 	}
 
 	function readByte(buffer){
@@ -260,16 +222,11 @@ function _read(buff, cb){
 			return ''
 		}
 	}
-	function readCompressed(buffer, length, cb){
+	function readCompressed(buffer, length){
 		offset += length
-		return length != 0 ? lzma.decompress(buffer.slice(offset-length, offset), cb) : cb(null,null)
-	}
-	function readCompressedSync(buffer, length){
-		offset += length
-		return length != 0 ? lzma.decompress(buffer.slice(offset-length, offset)) : null
+		return length != 0 ? lzma.decompress(buffer.slice(offset-length, offset)) : null;
 	}
 }
 
-module.exports.Replay = Replay
-module.exports.readSync = readSync
+//module.exports.Replay = Replay
 module.exports.read = read

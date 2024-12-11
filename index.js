@@ -184,11 +184,26 @@ async function _read(buff){
 
 		if(replay.replay_length != 0){
 			replay.replay_data = (await readCompressed(buff, replay.replay_length)).toString();
-			replay.unknown = readLong(buff)
-			return replay;
 		}
-		
-		replay.unknown = readLong(buff)
+
+		if (replay.gameVersion >= 20140721) {
+			replay.score_id = readLong(buff);
+		} else if (replay.gameVersion >= 20121008) {
+			replay.score_id = readInteger(buff);
+		} else {
+			replay.score_id = 0;
+		}
+
+		try {
+			const scoreInfoLength = readInteger(buff);
+			const scoreInfo = (await readCompressed(buff, scoreInfoLength)).toString();
+
+			replay.score_info = JSON.parse(scoreInfo);
+			console.log(replay.score_info);
+		} catch(e) {
+			// not a lazer replay
+		}
+
 		return replay;
 	}catch(err){
 		return null;
